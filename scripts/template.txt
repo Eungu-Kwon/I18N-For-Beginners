@@ -26,14 +26,14 @@ Added | Deleted | Modified | Renamed
 
 Name | Link | State | Orig Words | Trans Words | Modified Rate | Translated Rate | Translate Error
 --- | --- | --- | --- | --- | ---
-{% for node in res_tree %}{% if node['is_leaf'] %}{% if node.data.info != None %}{{ node.data.name }} | [#](#{{node.data.dir}}) | {{ node.data.state }} | {{ node.data.info.original_words }} | {{ node.data.info.translate_words }} | {{ node.data.info.mod_rate }} | {{ node.data.info.trans_rate }} | {{ node.data.info.trans_err }}{% else %}{{ node.data.name }} | [#](#{{node.data.dir}}) | {{ node.data.state }} | {{ node.data.doc_words }} | - | - | - | -{% endif %}
+{% for node in res_tree %}{% if node['is_leaf'] %}{% if node.data.mod == True and node.data.info != None %}{{ node.data.name }} | [#](#{{node.data.dir}}) | {{ node.data.state }} | {{ node.data.info.original_words }} | {{ node.data.info.translate_words }} | {{ node.data.info.mod_rate }} | {{ node.data.info.trans_rate }} | {{ node.data.info.trans_err }}{% else %}{{ node.data.name }} | [#](#{{node.data.dir}}) | {{ node.data.state }} | {{ node.data.doc_words }} | - | - | - | -{% endif %}
 {% endif %}{% endfor %}
 ---
 
 {% for node in res_tree %}
-{% if node['is_leaf'] %}
+{% if node['is_leaf'] %}{% if node.data.mod == True %}
 {{ '\t' * node['level'] }}+  <details> <summary> <span id="{{ node.data.dir }}">{{ node.data.name }}</span> : {{ node.data.state }} {% if node.data.state == 'Modified' %}<span style="color:blue">🇺🇸{{ node.data.word_count[0] }}</span> / <span style="color:red">🇰🇷{{ node.data.word_count[1] }}</span>{% endif %} {% if node.data.state != 'Deleted' %}📄 {{ node.data.doc_words }} {% endif %}  </summary>
-	{% if node.data.state == 'Modified' and node.data.info != None %}{% for section in node.data.info.section %}
+	{% if (node.data.state == 'Modified' or node.data.state == '-') and node.data.info != None %}{% for section in node.data.info.section %}
 	{{ '\t' * node['level'] }}✅ line {{ section.line_no }}<br>{{ '{% raw %}' }}{% if section.translated == False %}
 	
 	{% if section.added != None %}{{ '\t' * node['level'] }}🇺🇸 {{ section.added }}<br>{% endif %}
@@ -61,7 +61,7 @@ Name | Link | State | Orig Words | Trans Words | Modified Rate | Translated Rate
 	{{ '\t' * node['level'] }}{{ node.data.word_count[0] }} words added.
 	{% endif %}
 	{{ '\t' * node['level'] }}</details>
-{% else %}
+{% endif %}{% else %}
 {{ '\t' * node['level'] }}+ ### {{ node['data'] }}
 {% endif %}
 {% endfor %}

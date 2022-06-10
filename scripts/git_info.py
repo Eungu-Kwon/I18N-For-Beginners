@@ -1,5 +1,6 @@
 import subprocess
 import re
+import os
 from translate import *
 from langid import classify
 from word_dist import *
@@ -11,7 +12,7 @@ re_erased = re.compile('\[-([\s\S]+?)-\]')
 def get_word_count(str):
 	return len(str.split())
 
-def get_modified_info(commit1, commit2, file_name):
+def get_modified_info(out, by_tree):
 	added = 0
 	erased = 0
 	translated = 0
@@ -20,7 +21,6 @@ def get_modified_info(commit1, commit2, file_name):
 	Trans = Translate()
 	mod_data = []
 
-	out = subprocess.check_output(['git', 'diff', commit1, commit2, '--word-diff', '--', file_name[1]], encoding='utf-8').splitlines()
 	line_no = 0
 
 	for line in out:
@@ -29,7 +29,7 @@ def get_modified_info(commit1, commit2, file_name):
 			sp = line.split()[2]
 			line_no = int(sp[1:].split(',')[0])
 			continue
-		
+
 		iter = re_modifiy.finditer(line)
 		for m in iter:
 			deleted_word = m.group(1)
@@ -45,7 +45,7 @@ def get_modified_info(commit1, commit2, file_name):
 				added_count = get_word_count(added_word)
 				word_dist = levenshtein(deleted_word, added_word)
 
-				mod_data.append({'translated': False, 'added': added_word, 'deleted': deleted_word, 'distance': round(word_dist / max(len(added_word), len(deleted_word)) * 100, 2), 'count': (added_count, deleted_count), 'line_no': line_no})
+				mod_data.append({'translated': False, 'added': added_word.replace('<', '&lt;'), 'deleted': deleted_word.replace('<', '&lt;'), 'distance': round(word_dist / max(len(added_word), len(deleted_word)) * 100, 2), 'count': (added_count, deleted_count), 'line_no': line_no})
 				added += added_count
 				erased += deleted_count
 
@@ -64,7 +64,7 @@ def get_modified_info(commit1, commit2, file_name):
 				else:
 					cos_sim = -2
 
-				mod_data.append({'translated': True, 'original': orig_text, 'translated': tran_text, 'simularity': cos_sim, 'line_no': line_no})
+				mod_data.append({'translated': True, 'original': orig_text.replace('<', '&lt;'), 'translated': tran_text.replace('<', '&lt;'), 'simularity': cos_sim, 'line_no': line_no})
 				translated += get_word_count(orig_text)
 
 		# get added part
@@ -74,7 +74,7 @@ def get_modified_info(commit1, commit2, file_name):
 				continue
 			added_word = m.group(1)
 			added_count = get_word_count(added_word)
-			mod_data.append({'translated': False, 'added': added_word, 'deleted': None, 'distance': -1, 'count': (added_count, 0), 'line_no': line_no})
+			mod_data.append({'translated': False, 'added': added_word.replace('<', '&lt;'), 'deleted': None, 'distance': -1, 'count': (added_count, 0), 'line_no': line_no})
 			added += added_count
 
 		#get deleted part
@@ -84,18 +84,12 @@ def get_modified_info(commit1, commit2, file_name):
 				continue
 			deleted_word = m.group(1)
 			deleted_count = get_word_count(deleted_word)
-			mod_data.append({'translated': False, 'added': None, 'deleted': deleted_word, 'distance': -1, 'count': (0, deleted_count), 'line_no': line_no})
+			mod_data.append({'translated': False, 'added': None, 'deleted': deleted_word.replace('<', '&lt;'), 'distance': -1, 'count': (0, deleted_count), 'line_no': line_no})
 			erased += deleted_count
 		line_no += 1
 
-	trans_words = get_git_word_count(commit1, file_name[1])
-	orig_words = get_git_word_count(commit2, file_name[1])
 	info = {'section': mod_data,
-		'mod_rate': round((added + erased) / (trans_words + orig_words) * 100, 2),
-		'trans_rate': round(translated / orig_words * 100, 2),
 		'trans_err': round(trans_err / trans_count * 100 if trans_count != 0 else 0, 2),
-		'original_words': orig_words,
-		'translate_words': trans_words,
 		'translated': translated,
 		'added': added,
 		'erased': erased,}

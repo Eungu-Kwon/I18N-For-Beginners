@@ -1,6 +1,7 @@
 import sys
 import git_info
 import yaml
+import subprocess
 import os
 from datetime import datetime
 from jinja2 import Template
@@ -15,34 +16,56 @@ def get_leaf(t, where):
 		t = t[i]
 	return t
 
-def get_diff(commit1, commit2, file_name):
-	state = file_name[0][0]
+def get_diff(commit1, commit2, file_name, by_tree=True):
+	state = file_name['state']
 
-	cur_name = file_name[1].split('/')[-1]
+	cur_name = file_name['name'].split('/')[-1]
 	info = None
 	word_count = (-1, -1)
 
-	exist = git_info.is_exist(commit2, file_name[1])
+	exist = git_info.is_exist(commit2, file_name['name'])
 	doc_words = 0
 
-	if state == 'M':
-		if exist:
-			word_count, info = git_info.get_modified_info(commit1, commit2, file_name)
-			doc_words = git_info.get_git_word_count(commit1, file_name[1])
-		state = 'Modified'
-	elif state == 'A':
-		doc_words = git_info.get_git_word_count(commit2, file_name[1])
-		word_count = (doc_words, 0)
-		state = 'Added'
-	elif state == 'R':
-		cur_name = file_name[2].split('/')[-1]
-		doc_words = git_info.get_git_word_count(commit2, file_name[2])
-		state = 'Renamed'
-	elif state == 'D':
-		state = 'Deleted'
+	if by_tree:
+		out = subprocess.check_output(['git', 'diff', commit1, commit2, '--word-diff', '--', file_name['name']], encoding='utf-8').splitlines()
+		
+		if state == 'M':
+			if exist:
+				word_count, info = git_info.get_modified_info(out, by_tree)
+				doc_words = git_info.get_git_word_count(commit1, file_name['name'])
 
-	return {'dir': file_name[1],
-		'name': file_name[1].split('/')[-1],
+				info['original_words'] = git_info.get_git_word_count(commit2, file_name['name'])
+				info['translate_words'] = git_info.get_git_word_count(commit2, file_name['name'])
+				info['mod_rate'] = round((info['added'] + info['erased']) / (info['translate_words'] + info['original_words']) * 100, 2)
+				info['trans_rate'] = round(info['translated'] / info['original_words'] * 100, 2)
+			state = 'Modified'
+		elif state == 'A':
+			doc_words = git_info.get_git_word_count(commit2, file_name['name'])
+			word_count = (doc_words, 0)
+			state = 'Added'
+		elif state == 'R':
+			cur_name = file_name['newname'].split('/')[-1]
+			doc_words = git_info.get_git_word_count(commit2, file_name['newname'])
+			state = 'Renamed'
+		elif state == 'D':
+			state = 'Deleted'
+	else:
+		t_path = get_translated_file(file_name['name'])
+		if t_path != None:
+			out, err = subprocess.Popen(['git', 'diff', '--no-index', '--word-diff', '--', t_path, file_name['name']], stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').communicate()
+
+			out = out.splitlines()
+			word_count, info = git_info.get_modified_info(out, by_tree)
+			doc_words = git_info.get_git_word_count(commit1, file_name['name'])
+
+			info['original_words'] = git_info.get_git_word_count(commit1, file_name['name'])
+			info['translate_words'] = git_info.get_git_word_count(commit1, file_name['name'])
+			info['mod_rate'] = round((info['added'] + info['erased']) / (info['translate_words'] + info['original_words']) * 100, 2)
+			info['trans_rate'] = round(info['translated'] / info['original_words'] * 100, 2)
+
+	return {'mod': True,
+		'dir': file_name['name'],
+		'name': file_name['name'].split('/')[-1],
 		'new_name': cur_name,
 		'word_count': word_count,
 		'doc_words': doc_words,
@@ -58,7 +81,7 @@ def preorder(t, li, depth = 0):
 			li.pop()
 			li.append({'level': depth-1, 'data': v, 'is_leaf': True})
 
-def render_page(title, tree, c1, c2, md_file, stat):
+def render_page(title, tree, c1, c2, md_file, stat, by_tree=True):
 	tree_list = []
 	remotes = {}
 	for i in git_info.get_remote():
@@ -70,10 +93,12 @@ def render_page(title, tree, c1, c2, md_file, stat):
 	orig_list = git_info.get_files(c2)
 	orig_list = [x for x in orig_list if not is_untracking_file(c2, x)]
 
-	origin_info = {'commit': git_info.get_commit_str(c2),
-			'date': git_info.get_commit_date(c2),
-			'file_num': len(orig_list),
-			'url': remotes['upstream']}
+	origin_info = {}
+	if by_tree:
+		origin_info = {'commit': git_info.get_commit_str(c2),
+				'date': git_info.get_commit_date(c2),
+				'file_num': len(orig_list),
+				'url': remotes['upstream']}
 
 	trans_info = {'commit': git_info.get_commit_str(c1),
 			'date': git_info.get_commit_date(c1),
@@ -88,17 +113,47 @@ def render_page(title, tree, c1, c2, md_file, stat):
 
 def is_untracking_file(commit, file_dir):
 	return file_dir.startswith('.') or '/.' in file_dir or not (file_dir.endswith('.md') or file_dir.endswith('.markdown'))
-	
+
+def is_translate_dir(file_dir):
+	return 'translations/' in file_dir
+
+def get_translated_file(file_dir):
+	file_path = os.path.dirname(file_dir) + '/translations/' + os.path.basename(file_dir).replace('.', '.ko.')
+	if os.path.exists(file_path):
+		return file_path
+	else:
+		return None
+
 def main(commit1, commit2, md_file, settings):
-	files = git_info.get_diff_files(commit1, commit2)
+	files = git_info.get_files(commit1)
+	files += git_info.get_files(commit2)
+	files = list(dict.fromkeys(files))
+	
+	m_files = git_info.get_diff_files(commit1, commit2)
+	mod = {}
+	for f in m_files:
+		mod[f[1]] = {'state': f[0], 'name': f[1]}
+		if mod[f[1]]['state'] == 'R':
+			mod[f[1]]['newname'] = f[2]
+
 	tree = dtree()
-	file_stat = {'Added': 0, 'Modified': 0, 'Deleted': 0, 'Renamed': 0}
+	file_stat = {'Added': 0, 'Modified': 0, 'Deleted': 0, 'Renamed': 0, '-': 0}
+
+	by_dir = settings['document']['translate-by'] == 'dir'
 	for f in files:
-		f_dir = f[1].split('/')
-		if is_untracking_file(commit2, f[1]):
+		f_dir = f.split('/')
+		diff = {'mod': False,
+			'dir': f,
+			'name': f.split('/')[-1],
+			'state': '-'}
+		if is_untracking_file(commit2, f) or is_translate_dir(f):
 			continue
-		diff = get_diff(commit1, commit2, f)
-		file_stat[diff['state']] += 1
+		if by_dir:
+			diff = get_diff(commit1, commit2, {'name': f, 'state': '-'}, False)
+			file_stat[diff['state']] += 1
+		elif f in mod:
+			diff = get_diff(commit1, commit2, mod[f])
+			file_stat[diff['state']] += 1
 		leaf = get_leaf(tree, f_dir)
 		leaf['/data/'] = diff
 
@@ -106,9 +161,9 @@ def main(commit1, commit2, md_file, settings):
 		ran_num = 1
 		while os.path.exists('../' + md_file.replace('.', f'({ran_num}).')):
 			ran_num += 1
-		render_page(settings['document']['title'] + f' ({ran_num})', tree, commit1, commit2, md_file.replace('.', f'({ran_num}).'), file_stat)
+		render_page(settings['document']['title'] + f' ({ran_num})', tree, commit1, commit2, md_file.replace('.', f'({ran_num}).'), file_stat, not by_dir)
 	else:
-		render_page(settings['document']['title'], tree, commit1, commit2, md_file, file_stat)
+		render_page(settings['document']['title'], tree, commit1, commit2, md_file, file_stat, not by_dir)
 
 
 if __name__ == '__main__':

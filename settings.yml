@@ -2,6 +2,8 @@ document:
 
   title: Azure-Sdk
 
+  translate-by: repo
+
   original:
     url: https://github.com/Azure/azure-sdk.git
     branch: main
