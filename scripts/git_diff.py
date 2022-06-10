@@ -128,15 +128,16 @@ def main(commit1, commit2, md_file, settings):
 	by_dir = settings['document']['translate-by'] == 'dir'
 
 	files = git_info.get_files(commit1)
+	mod = {}
 	if not by_dir: 
 		files += git_info.get_files(commit2)
 		files = list(dict.fromkeys(files))
 		m_files = git_info.get_diff_files(commit1, commit2)
-	mod = {}
-	for f in m_files:
-		mod[f[1]] = {'state': f[0], 'name': f[1]}
-		if mod[f[1]]['state'] == 'R':
-			mod[f[1]]['newname'] = f[2]
+	
+		for f in m_files:
+			mod[f[1]] = {'state': f[0], 'name': f[1]}
+			if mod[f[1]]['state'] == 'R':
+				mod[f[1]]['newname'] = f[2]
 
 	tree = dtree()
 	file_stat = {'Added': 0, 'Modified': 0, 'Deleted': 0, 'Renamed': 0, '-': 0}
