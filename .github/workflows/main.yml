@@ -50,9 +50,15 @@ jobs:
         run: yq -o=props settings.yml > ./settings.props
          
       - name: Clone repository
+        if: ${{ $(cat settings.props | grep "document.translate-by" | cut -f 2 -d '=' | tr -d ' ') == 'repo' }}
         run : git clone $(cat settings.props | grep "document.translated.url" | cut -f 2 -d '=' | tr -d ' ') ${{ env.working-directory }}
-          
+      
+      - name: Clone repository
+        if: ${{ $(cat settings.props | grep "document.translate-by" | cut -f 2 -d '=' | tr -d ' ') == 'dir' }}
+        run : git clone $(cat settings.props | grep "document.original.url" | cut -f 2 -d '=' | tr -d ' ') ${{ env.working-directory }}
+
       - name: Add upstream
+        if: ${{ $(cat settings.props | grep "document.translate-by" | cut -f 2 -d '=' | tr -d ' ') == 'repo' }}
         run : git remote add upstream $(cat ../settings.props | grep "document.original.url" | cut -f 2 -d '=' | tr -d ' ')
         working-directory: ${{ env.working-directory }}
       
@@ -61,10 +67,12 @@ jobs:
         working-directory: ${{ env.working-directory }}
 
       - name: Fetch upstream
+        if: ${{ $(cat settings.props | grep "document.translate-by" | cut -f 2 -d '=' | tr -d ' ') == 'repo' }}
         run : git fetch upstream
         working-directory: ${{ env.working-directory }}
         
       - name: Checkout to upstream
+        if: ${{ $(cat settings.props | grep "document.translate-by" | cut -f 2 -d '=' | tr -d ' ') == 'repo' }}
         run : git checkout upstream/$(cat ../settings.props | grep "document.original.branch" | cut -f 2 -d '=' | tr -d ' ')
         working-directory: ${{ env.working-directory }}
         
