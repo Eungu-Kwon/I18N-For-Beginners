@@ -1,11 +1,11 @@
 document:
 
-  title: Azure-Sdk
+  title: Web-Dev-For-Beginners
 
-  translate-by: repo
+  translate-by: dir
 
   original:
-    url: https://github.com/Azure/azure-sdk.git
+    url: https://github.com/microsoft/Web-Dev-For-Beginners.git
     branch: main
 
   translated:
