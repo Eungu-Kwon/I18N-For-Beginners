@@ -90,11 +90,10 @@ def render_page(title, tree, c1, c2, md_file, stat, by_tree=True):
 	trans_list = git_info.get_files(c1)
 	trans_list = [x for x in trans_list if not is_untracking_file(c1, x)]
 
-	orig_list = git_info.get_files(c2)
-	orig_list = [x for x in orig_list if not is_untracking_file(c2, x)]
-
 	origin_info = {}
 	if by_tree:
+		orig_list = git_info.get_files(c2)
+		orig_list = [x for x in orig_list if not is_untracking_file(c2, x)]
 		origin_info = {'commit': git_info.get_commit_str(c2),
 				'date': git_info.get_commit_date(c2),
 				'file_num': len(orig_list),
