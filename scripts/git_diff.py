@@ -125,11 +125,13 @@ def get_translated_file(file_dir):
 		return None
 
 def main(commit1, commit2, md_file, settings):
+	by_dir = settings['document']['translate-by'] == 'dir'
+
 	files = git_info.get_files(commit1)
-	files += git_info.get_files(commit2)
-	files = list(dict.fromkeys(files))
-	
-	m_files = git_info.get_diff_files(commit1, commit2)
+	if not by_dir: 
+		files += git_info.get_files(commit2)
+		files = list(dict.fromkeys(files))
+		m_files = git_info.get_diff_files(commit1, commit2)
 	mod = {}
 	for f in m_files:
 		mod[f[1]] = {'state': f[0], 'name': f[1]}
@@ -139,7 +141,7 @@ def main(commit1, commit2, md_file, settings):
 	tree = dtree()
 	file_stat = {'Added': 0, 'Modified': 0, 'Deleted': 0, 'Renamed': 0, '-': 0}
 
-	by_dir = settings['document']['translate-by'] == 'dir'
+	
 	for f in files:
 		f_dir = f.split('/')
 		diff = {'mod': False,
